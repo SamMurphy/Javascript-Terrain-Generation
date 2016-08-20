@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="en">
 	<head>
-		<title>three.js webgl - geometry - terrain</title>
+		<title>Terrain Generation Techniques - Sam Murphy</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 		<style>
@@ -59,8 +59,8 @@
 
 			var mesh, texture;
 
-			var worldWidth = 256, worldDepth = 256,
-			worldHalfWidth = worldWidth / 2, worldHalfDepth = worldDepth / 2;
+			var worldSize = 256;
+			worldHalfSize = worldSize / 2;
 
 			var clock = new THREE.Clock();
 
@@ -88,25 +88,7 @@
 
 				roughness = 10;
 
-				data = generateHeight( worldWidth, worldDepth );
-
-				var geometry = new THREE.PlaneBufferGeometry( 7500, 7500, worldWidth - 1, worldDepth - 1 );
-				geometry.rotateX( - Math.PI / 2 );
-
-				var vertices = geometry.attributes.position.array;
-
-				for ( var i = 0, j = 0, l = vertices.length; i < l; i ++, j += 3 ) {
-
-					vertices[ j + 1 ] = data[ i ] * roughness;
-
-				}
-
-				texture = new THREE.CanvasTexture( generateTexture( data, worldWidth, worldDepth ) );
-				texture.wrapS = THREE.ClampToEdgeWrapping;
-				texture.wrapT = THREE.ClampToEdgeWrapping;
-
-				mesh = new THREE.Mesh( geometry, new THREE.MeshBasicMaterial( { map: texture } ) );
-				scene.add( mesh );
+				generate();
 
 				renderer = new THREE.WebGLRenderer();
 				renderer.setClearColor( 0xbfd1e5 );
@@ -123,17 +105,22 @@
 				var gui = new dat.GUI();
 
 				var terrainController = {
-					roughness: 10
+					Roughness: 10
 				};
 
 				var valuesChanger = function() {
-					roughness = terrainController.roughness;
+					roughness = terrainController.Roughness;
 
 				};
 
 				valuesChanger();
 
-				gui.add(terrainController, "roughness", 0.0, 100.0, 1.0).onChange( valuesChanger );
+				var button = { 
+					Generate:function(){ scene.remove(mesh); generate(); }
+				};
+
+				gui.add(terrainController, "Roughness", 0.0, 100.0, 1.0).onChange( valuesChanger );
+				gui.add(button,'Generate');
 				gui.close();
 
 				window.addEventListener( 'resize', onWindowResize, false );
@@ -151,18 +138,47 @@
 
 			}
 
-			function generateHeight( width, height ) {
+			function generate() {
+				data = generateHeightFromDiamondSquare( worldSize );
 
-				var size = width * height, data = new Uint8Array( size ),
+				var terrain_geometry = new THREE.PlaneGeometry(7500, 7500, worldSize, worldSize);
+                var min_height = Infinity;
+                var max_height = -Infinity;
+                for (var y = 0; y < worldSize; y++) {
+                    for (var x = 0; x < worldSize; x++) {
+                        var height_val = data[x + (worldSize + 1) * y];
+                       if ( height_val < min_height ) min_height = height_val;
+                        if ( height_val > max_height ) max_height = height_val;
+                        if ( height_val < 0 ) height_val = 0;
+                        if (y === 0 || y === worldSize || x === 0 || x === worldSize) height_val = 0.0;
+                        terrain_geometry.vertices[y + (worldSize + 1) * x].z = height_val;
+                    }
+                }
+				texture = new THREE.CanvasTexture( generateTexture( data, worldSize, worldSize ) );
+				texture.wrapS = THREE.ClampToEdgeWrapping;
+				texture.wrapT = THREE.ClampToEdgeWrapping;
+
+				terrain_geometry.computeFaceNormals();
+                terrain_geometry.computeVertexNormals();
+				terrain_material  = new THREE.MeshNormalMaterial();
+
+				mesh = new THREE.Mesh( terrain_geometry, terrain_material );
+				//mesh = new THREE.Mesh( geometry, new THREE.MeshBasicMaterial( { map: texture } ) );
+				mesh.rotation.x = -Math.PI / 2.0;
+				scene.add( mesh );
+			}
+
+			function generateHeightFromPerlinNoise( worldSize ) {
+
+				var size = worldSize * worldSize, data = new Uint8Array( size  ),
 				perlin = new ImprovedNoise(), quality = 1, z = Math.random() * 100;
 
 				for ( var j = 0; j < 4; j ++ ) {
 
 					for ( var i = 0; i < size; i ++ ) {
 
-						var x = i % width, y = ~~ ( i / width );
+						var x = i % worldSize, y = ~~ ( i / worldSize );
 						data[ i ] += Math.abs( perlin.noise( x / quality, y / quality, z ) * quality * 1.75 );
-
 					}
 
 					quality *= 5;
@@ -170,7 +186,79 @@
 				}
 
 				return data;
+			}
 
+			function generateHeightFromDiamondSquare( worldSize ) {
+
+				var size = worldSize + 1;
+				var max = size - 1;
+				var map = new Float32Array(size * size);
+
+                set(0, 0, max);
+                set(max, 0, max / 2);
+                set(max, max, 0);
+                set(0, max, max / 2); 
+
+                divide(max);
+
+                function set (x, y, val) {
+                	map[x + size * y] = val;
+            	}
+
+            	function get (x, y) {
+                	if (x < 0 || x > max || y < 0 || y > max) return -1;
+                	return map[x + size * y];
+            	}
+
+                function divide(p_size) {
+                    var x, y, half = p_size / 2;
+                    var scale = roughness * p_size;
+                    if (half < 1) return;
+
+                    for (y = half; y < max; y += p_size) {
+                        for (x = half; x < max; x += p_size) {
+                            square(x, y, half, Math.random() * scale * 2 - scale);
+                        }
+                    }
+                    for (y = 0; y <= max; y += half) {
+                        for (x = (y + half) % p_size; x <= max; x += p_size) {
+                            diamond(x, y, half, Math.random() * scale * 2 - scale);
+                        }
+                    }
+                    divide(p_size / 2);
+                }
+
+                function average(values) {
+                    var valid = values.filter(function (val) {
+                        return val !== -1;
+                    });
+                    var total = valid.reduce(function (sum, val) {
+                        return sum + val;
+                    }, 0);
+                    return total / valid.length;
+                }
+
+                function square(x, y, size, offset) {
+                    var ave = average([
+                        get(x - size, y - size), // upper left
+                        get(x + size, y - size), // upper right
+                        get(x + size, y + size), // lower right
+                        get(x - size, y + size) // lower left
+                    ]);
+                    set(x, y, ave + offset);
+                }
+
+                function diamond(x, y, size, offset) {
+                    var ave = average([
+                        get(x, y - size), // top
+                        get(x + size, y), // right
+                        get(x, y + size), // bottom
+                        get(x - size, y) // left
+                    ]);
+                    set(x, y, ave + offset);
+                }
+
+                return map;
 			}
 
 			function generateTexture( data, width, height ) {
@@ -203,9 +291,9 @@
 
 					shade = vector3.dot( sun );
 
-					imageData[ i ] = ( 113 + shade * 128 ) * ( 0.5 + data[ j ] * 0.007 );
-					imageData[ i + 1 ] = ( 156 + shade * 128 ) * ( 0.5 + data[ j ] * 0.007 );
-					imageData[ i + 2 ] = ( 20 + shade * 128 ) * ( 0.5 + data[ j ] * 0.007 );
+					imageData[ i ] = ( 113 + shade * 128 ) * ( 0.5 + data[ j ] * 0.007);
+					imageData[ i + 1 ] = ( 156 + shade * 128 ) * ( 0.5 + data[ j ] * 0.007);
+					imageData[ i + 2 ] = ( 20 + shade * 128 ) * ( 0.5 + data[ j ] * 0.007);
 				}
 
 				context.putImageData( image, 0, 0 );
@@ -236,7 +324,6 @@
 				context.putImageData( image, 0, 0 );
 
 				return canvasScaled;
-
 			}
 
 			//

@@ -57,14 +57,17 @@
 
 			var camera, controls, scene, renderer;
 
-			var mesh, texture;
+			var mesh, texture, bottomMesh;
 
-			var worldSize = 256;
-			worldHalfSize = worldSize / 2;
+			var detail = 8;
+			var worldSize = Math.pow(2, detail) + 1;
 
 			var clock = new THREE.Clock();
 
 			var roughness;
+
+			var perlin = true;
+			var diamondSquare = false;
 
 			init();
 			animate();
@@ -90,6 +93,15 @@
 
 				generate();
 
+				var bottom_geometry = new THREE.PlaneGeometry(7500, 7500);
+				bottom_geometry.computeFaceNormals();
+                bottom_geometry.computeVertexNormals();
+				bottom_material = new THREE.MeshNormalMaterial();
+				bottomMesh = new THREE.Mesh(bottom_geometry, bottom_material);
+				bottomMesh.rotation.x = -Math.PI / 2.0;
+				bottomMesh.rotation.y = -Math.PI;
+				scene.add( bottomMesh );
+
 				renderer = new THREE.WebGLRenderer();
 				renderer.setClearColor( 0xbfd1e5 );
 				renderer.setPixelRatio( window.devicePixelRatio );
@@ -104,23 +116,24 @@
 
 				var gui = new dat.GUI();
 
-				var terrainController = {
-					Roughness: 10
-				};
-
-				var valuesChanger = function() {
-					roughness = terrainController.Roughness;
-
-				};
-
-				valuesChanger();
-
 				var button = { 
-					Generate:function(){ scene.remove(mesh); generate(); }
+					Generate:function(){ scene.remove(mesh); generate(); },
+					GeneratePerlin:function(){ perlin = true; diamondSquare = false; scene.remove(mesh); generate(); },
+					GenerateDiamondSquare:function(){ perlin = false; diamondSquare = true; scene.remove(mesh); generate(); }
 				};
 
-				gui.add(terrainController, "Roughness", 0.0, 100.0, 1.0).onChange( valuesChanger );
-				gui.add(button,'Generate');
+				gui.add(this, 'detail', 2, 9).name("Detail").listen().onFinishChange(function(value) {
+					detail = parseInt(detail);
+					worldSize = Math.pow(2, detail) + 1;
+                    generate();
+                });
+
+                gui.add(this, 'roughness', 0.0, 100.0, 1.0).name("Roughness").listen().onFinishChange(function(value) {
+                	generate();
+                });
+
+				gui.add(button,'GeneratePerlin').name("Generate Perlin");
+				gui.add(button,'GenerateDiamondSquare').name("Generate Diamond Square");
 				gui.close();
 
 				window.addEventListener( 'resize', onWindowResize, false );
@@ -139,19 +152,32 @@
 			}
 
 			function generate() {
-				data = generateHeightFromDiamondSquare( worldSize );
+				scene.remove(mesh);
+				var heightMultiplier = 1;
+				if (perlin)
+				{
+					heightMultiplier = roughness;
+					data = generateHeightFromPerlinNoise( worldSize );
+				}
+				else if (diamondSquare)
+				{
+					heightMultiplier = 1;
+					data = generateHeightFromDiamondSquare( worldSize );
+				}
 
-				var terrain_geometry = new THREE.PlaneGeometry(7500, 7500, worldSize, worldSize);
+
+				var terrain_geometry = new THREE.PlaneGeometry(7500, 7500, worldSize - 1, worldSize - 1);
+
                 var min_height = Infinity;
                 var max_height = -Infinity;
-                for (var y = 0; y < worldSize; y++) {
-                    for (var x = 0; x < worldSize; x++) {
-                        var height_val = data[x + (worldSize + 1) * y];
-                       if ( height_val < min_height ) min_height = height_val;
+                for (var y = 0; y < worldSize - 1; y++) {
+                    for (var x = 0; x < worldSize - 1; x++) {
+                        var height_val = data[x + (worldSize) * y] * heightMultiplier;
+                       	if ( height_val < min_height ) min_height = height_val;
                         if ( height_val > max_height ) max_height = height_val;
                         if ( height_val < 0 ) height_val = 0;
-                        if (y === 0 || y === worldSize || x === 0 || x === worldSize) height_val = 0.0;
-                        terrain_geometry.vertices[y + (worldSize + 1) * x].z = height_val;
+                        if (y === 0 || y === worldSize - 1|| x === 0 || x === worldSize - 1) height_val = 0.0;
+                        terrain_geometry.vertices[y + (worldSize) * x].z = height_val;
                     }
                 }
 				texture = new THREE.CanvasTexture( generateTexture( data, worldSize, worldSize ) );
@@ -190,7 +216,7 @@
 
 			function generateHeightFromDiamondSquare( worldSize ) {
 
-				var size = worldSize + 1;
+				var size = worldSize;
 				var max = size - 1;
 				var map = new Float32Array(size * size);
 

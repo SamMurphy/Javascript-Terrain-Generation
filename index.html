@@ -65,6 +65,8 @@
 			var clock = new THREE.Clock();
 
 			var roughness;
+			var smoothness;
+			var smooth_iterations;
 
 			var perlin = true;
 			var diamondSquare = false;
@@ -90,6 +92,8 @@
 				controls.keys = [ 65, 83, 68 ];
 
 				roughness = 10;
+				smoothness = 0.7;
+				smooth_iterations = 2.0;
 
 				generate();
 
@@ -132,6 +136,15 @@
                 	generate();
                 });
 
+                gui.add(this, "smoothness", 0.0, 1.0, 0.1).name("Smoothness").listen().onFinishChange(function(value) {
+                	generate();
+                });
+
+                gui.add(this, "smooth_iterations", 1.0, 10.0, 1.0).name("Smooth Iterations").listen().onFinishChange(function(value) {
+                	smooth_iterations = parseInt(smooth_iterations);
+                	generate();
+                });
+
 				gui.add(button,'GeneratePerlin').name("Generate Perlin");
 				gui.add(button,'GenerateDiamondSquare').name("Generate Diamond Square");
 				gui.close();
@@ -165,6 +178,8 @@
 					data = generateHeightFromDiamondSquare( worldSize );
 				}
 
+				// Smooth the height map, smoothness flipped so 1 = no smooth, 0 = smooth
+				data = smooth(data, worldSize, 1 - smoothness, smooth_iterations);
 
 				var terrain_geometry = new THREE.PlaneGeometry(7500, 7500, worldSize - 1, worldSize - 1);
 
@@ -189,7 +204,7 @@
 				terrain_material  = new THREE.MeshNormalMaterial();
 
 				mesh = new THREE.Mesh( terrain_geometry, terrain_material );
-				//mesh = new THREE.Mesh( geometry, new THREE.MeshBasicMaterial( { map: texture } ) );
+				//mesh = new THREE.Mesh( terrain_geometry, new THREE.MeshBasicMaterial( { map: texture } ) );
 				mesh.rotation.x = -Math.PI / 2.0;
 				scene.add( mesh );
 			}
@@ -287,6 +302,38 @@
                 return map;
 			}
 
+			function smooth( data, size, smoothConstant, numberOfIterations) {
+				numberOfIterations = Math.abs(numberOfIterations);
+				for (var i = 0; i <= numberOfIterations; i++) {
+					/* Rows, left to right */
+					for (var x = 2; x < (size - 1); x++) {
+						for (var z = 1; z < (size - 1); z++) {
+							data[x * size + z] = data[(x - 1) * size + z] * (1 - smoothConstant) + data[x * size + z] * smoothConstant;
+						}
+					}
+					/* Rows, right to left*/
+					for (var x = (size - 1) - 2; x <= -1; x--) {
+						for (var z = 1; z < (size - 1); z++) {
+							data[x * size + z] = data[(x + 1) * size + z] * (1 - smoothConstant) + data[x * size + z] * smoothConstant;
+						}
+					}
+					/* Columns, bottom to top */
+					for (var x = 1; x < (size - 1); x++) {
+						for (var z = 2; z < (size - 1); z++) {
+							data[x * size + z] = data[x * size + (z - 1)] * (1 - smoothConstant) + data[x * size + z] * smoothConstant;
+						}
+					}
+					/* Columns, top to bottom */
+					for (var x = 1; x < (size - 1); x++) {
+						for (var z = (size - 1) - 1; z <= -1; z--) {
+							data[x * size + z] = data[x * size + (z + 1)] * (1 - smoothConstant) + data[x * size + z] * smoothConstant;
+						}
+					}
+				}
+
+				return data;
+			}
+
 			function generateTexture( data, width, height ) {
 
 				var canvas, canvasScaled, context, image, imageData,
@@ -317,9 +364,9 @@
 
 					shade = vector3.dot( sun );
 
-					imageData[ i ] = ( 113 + shade * 128 ) * ( 0.5 + data[ j ] * 0.007);
-					imageData[ i + 1 ] = ( 156 + shade * 128 ) * ( 0.5 + data[ j ] * 0.007);
-					imageData[ i + 2 ] = ( 20 + shade * 128 ) * ( 0.5 + data[ j ] * 0.007);
+					imageData[ i ] = ( 113 + shade * 128 ) * ( 0.5 + data[ j ] * 0.0007);
+					imageData[ i + 1 ] = ( 156 + shade * 128 ) * ( 0.5 + data[ j ] * 0.0007);
+					imageData[ i + 2 ] = ( 20 + shade * 128 ) * ( 0.5 + data[ j ] * 0.0007);
 				}
 
 				context.putImageData( image, 0, 0 );

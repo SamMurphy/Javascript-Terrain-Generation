@@ -43,6 +43,8 @@
 		<script src="js/Detector.js"></script>
 		<script src="js/stats.min.js"></script>
 		<script src="js/dat.gui.min.js"></script>
+		<script src="js/Perlin.js"></script>
+		<script src="js/DiamondSquare.js"></script>
 
 		<script>
 
@@ -70,6 +72,7 @@
 
 			var perlin = true;
 			var diamondSquare = false;
+			var perlin2 = false;
 
 			init();
 			animate();
@@ -122,8 +125,9 @@
 
 				var button = { 
 					Generate:function(){ scene.remove(mesh); generate(); },
-					GeneratePerlin:function(){ perlin = true; diamondSquare = false; scene.remove(mesh); generate(); },
-					GenerateDiamondSquare:function(){ perlin = false; diamondSquare = true; scene.remove(mesh); generate(); }
+					GeneratePerlin:function(){ perlin = true; diamondSquare = false; perlin2 = false; scene.remove(mesh); generate(); },
+					GenerateDiamondSquare:function(){ perlin = false; diamondSquare = true; perlin2 = false; scene.remove(mesh); generate(); },
+					GeneratePerlin2:function() { perlin =false; diamondSquare = false; perlin2 = true; scene.remove(mesh); generate();}
 				};
 
 				gui.add(this, 'detail', 2, 9).name("Detail").listen().onFinishChange(function(value) {
@@ -147,6 +151,7 @@
 
 				gui.add(button,'GeneratePerlin').name("Generate Perlin");
 				gui.add(button,'GenerateDiamondSquare').name("Generate Diamond Square");
+				gui.add(button,'GeneratePerlin2').name("Generate Perlin 2");
 				gui.close();
 
 				window.addEventListener( 'resize', onWindowResize, false );
@@ -176,6 +181,11 @@
 				{
 					heightMultiplier = 1;
 					data = generateHeightFromDiamondSquare( worldSize );
+				}
+				else if (perlin2)
+				{
+					heightMultiplier = roughness;
+					data = generateHeightFromPerlin2( worldSize );
 				}
 
 				// Smooth the height map, smoothness flipped so 1 = no smooth, 0 = smooth
@@ -231,75 +241,22 @@
 
 			function generateHeightFromDiamondSquare( worldSize ) {
 
-				var size = worldSize;
-				var max = size - 1;
-				var map = new Float32Array(size * size);
+				var ds = new DiamondSquare();
+				return ds.GetHeightMap(worldSize);
 
-                set(0, 0, max);
-                set(max, 0, max / 2);
-                set(max, max, 0);
-                set(0, max, max / 2); 
+			}
 
-                divide(max);
+			function generateHeightFromPerlin2( worldSize ) {
+				var size = worldSize * worldSize, data = new Float32Array( size  ),
+				perlin = new Perlin(), z = Math.random() * 1000,  quality = 1;
 
-                function set (x, y, val) {
-                	map[x + size * y] = val;
-            	}
+				for (var x = 0; x < worldSize; x ++) {
+					for (var y  = 0; y < worldSize; y++) {
+						data[ x + worldSize * y ] = perlin.OctavePerlin(x, y, z, 10, 0.5) * 512;
+					}
+				}
 
-            	function get (x, y) {
-                	if (x < 0 || x > max || y < 0 || y > max) return -1;
-                	return map[x + size * y];
-            	}
-
-                function divide(p_size) {
-                    var x, y, half = p_size / 2;
-                    var scale = roughness * p_size;
-                    if (half < 1) return;
-
-                    for (y = half; y < max; y += p_size) {
-                        for (x = half; x < max; x += p_size) {
-                            square(x, y, half, Math.random() * scale * 2 - scale);
-                        }
-                    }
-                    for (y = 0; y <= max; y += half) {
-                        for (x = (y + half) % p_size; x <= max; x += p_size) {
-                            diamond(x, y, half, Math.random() * scale * 2 - scale);
-                        }
-                    }
-                    divide(p_size / 2);
-                }
-
-                function average(values) {
-                    var valid = values.filter(function (val) {
-                        return val !== -1;
-                    });
-                    var total = valid.reduce(function (sum, val) {
-                        return sum + val;
-                    }, 0);
-                    return total / valid.length;
-                }
-
-                function square(x, y, size, offset) {
-                    var ave = average([
-                        get(x - size, y - size), // upper left
-                        get(x + size, y - size), // upper right
-                        get(x + size, y + size), // lower right
-                        get(x - size, y + size) // lower left
-                    ]);
-                    set(x, y, ave + offset);
-                }
-
-                function diamond(x, y, size, offset) {
-                    var ave = average([
-                        get(x, y - size), // top
-                        get(x + size, y), // right
-                        get(x, y + size), // bottom
-                        get(x - size, y) // left
-                    ]);
-                    set(x, y, ave + offset);
-                }
-
-                return map;
+				return data;
 			}
 
 			function smooth( data, size, smoothConstant, numberOfIterations) {

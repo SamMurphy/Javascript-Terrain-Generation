@@ -152,10 +152,10 @@
                 	generate();
                 });
 
-				gui.add(button,'GeneratePerlin').name("Generate Perlin");
-				gui.add(button,'GenerateDiamondSquare').name("Generate Diamond Square");
-				gui.add(button,'GeneratePerlin2').name("Generate Perlin 2");
-				gui.add(button,'GenerateParticleDeposition').name("Generate Particle Deposition");
+				gui.add(button,'GeneratePerlin').name("Built-in Perlin");
+				gui.add(button,'GeneratePerlin2').name("My Perlin");
+				gui.add(button,'GenerateDiamondSquare').name("Diamond Square");
+				gui.add(button,'GenerateParticleDeposition').name("Particle Deposition");
 				gui.close();
 
 				window.addEventListener( 'resize', onWindowResize, false );
@@ -230,19 +230,28 @@
 
 			function generateHeightFromPerlinNoise( worldSize ) {
 
-				var size = worldSize * worldSize, data = new Uint8Array( size  ),
+				var size = worldSize * worldSize, data = new Float32Array( size  ),
 				perlin = new ImprovedNoise(), quality = 1, z = Math.random() * 100;
 
-				for ( var j = 0; j < 4; j ++ ) {
+				var maxValue = 0;
+				var minValue = 9999;
+
+				for ( var j = 0; j < 5; j ++ ) {
 
 					for ( var i = 0; i < size; i ++ ) {
 
 						var x = i % worldSize, y = ~~ ( i / worldSize );
 						data[ i ] += Math.abs( perlin.noise( x / quality, y / quality, z ) * quality * 1.75 );
+
+						if (data[i] > maxValue) maxValue = data[i];
+						if (data[i] < minValue) minValue = data[i];
 					}
 
 					quality *= 5;
+				}
 
+				for (var k = 0; k < size; k++) {
+					data[k] = ((data[k]-minValue)/(maxValue-minValue) * 2 - 1) * 256;
 				}
 
 				return data;
@@ -270,7 +279,7 @@
 
 			function generateHeightFromParticleDeposition( worldSize ) {
 				var particleDeposition = new ParticleDeposition();
-				return particleDeposition.GetHeightMap(worldSize, false, 100000, 5);
+				return particleDeposition.GetHeightMap(worldSize, false, 1000000, 1, 5);
 			}
 
 			function smooth( data, size, smoothConstant, numberOfIterations) {

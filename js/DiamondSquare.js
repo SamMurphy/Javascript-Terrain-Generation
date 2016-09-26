@@ -3,6 +3,7 @@ var DiamondSquare = function () {
     var size = 255;
     var max = size - 1;
     var map = new Float32Array(size * size);
+    var roughness = 10;
 
     function set (x, y, val) {
         map[x + size * y] = val;
@@ -63,7 +64,9 @@ var DiamondSquare = function () {
 
     return {
 
-        GetHeightMap: function ( worldSize )  {
+        GetHeightMap: function ( worldSize, p_roughness )  {
+
+            roughness = p_roughness;
 
             size = worldSize;
             max = size - 1;

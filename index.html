@@ -193,7 +193,7 @@
 				}
 				else if (particleDeposition)
 				{
-					heightMultiplier = 1024;
+					heightMultiplier = 128 * roughness;
 					data = generateHeightFromParticleDeposition( worldSize );
 				}
 
@@ -260,7 +260,7 @@
 			function generateHeightFromDiamondSquare( worldSize ) {
 
 				var ds = new DiamondSquare();
-				return ds.GetHeightMap(worldSize);
+				return ds.GetHeightMap(worldSize, roughness);
 
 			}
 

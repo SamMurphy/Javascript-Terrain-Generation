@@ -46,6 +46,7 @@
 		<script src="js/Perlin.js"></script>
 		<script src="js/DiamondSquare.js"></script>
 		<script src="js/ParticleDeposition.js"></script>
+		<script src="js/FaultAlgorithm.js"></script>
 
 		<script>
 
@@ -75,6 +76,7 @@
 			var diamondSquare = false;
 			var perlin2 = false;
 			var particleDeposition = false;
+			var fault = false;
 
 			init();
 			animate();
@@ -127,10 +129,11 @@
 
 				var button = { 
 					Generate:function(){ scene.remove(mesh); generate(); },
-					GeneratePerlin:function(){ perlin = true; diamondSquare = false; perlin2 = false; particleDeposition = false; scene.remove(mesh); generate(); },
-					GenerateDiamondSquare:function(){ perlin = false; diamondSquare = true; perlin2 = false; particleDeposition = false; scene.remove(mesh); generate(); },
-					GeneratePerlin2:function() { perlin =false; diamondSquare = false; perlin2 = true; particleDeposition = false; scene.remove(mesh); generate();},
-					GenerateParticleDeposition:function() { perlin =false; diamondSquare = false; perlin2 = false; particleDeposition = true; scene.remove(mesh); generate();}
+					GeneratePerlin:function(){ perlin = true; diamondSquare = false; perlin2 = false; particleDeposition = false; fault = false; scene.remove(mesh); generate(); },
+					GenerateDiamondSquare:function(){ perlin = false; diamondSquare = true; perlin2 = false; particleDeposition = false; fault = false; scene.remove(mesh); generate(); },
+					GeneratePerlin2:function() { perlin =false; diamondSquare = false; perlin2 = true; particleDeposition = false; fault = false; scene.remove(mesh); generate();},
+					GenerateParticleDeposition:function() { perlin =false; diamondSquare = false; perlin2 = false; particleDeposition = true; fault = false; scene.remove(mesh); generate();},
+					GenerateFaultAlgorithm:function() { perlin =false; diamondSquare = false; perlin2 = false; particleDeposition = false; fault = true; scene.remove(mesh); generate(); }
 				};
 
 				gui.add(this, 'detail', 2, 9).name("Detail").listen().onFinishChange(function(value) {
@@ -156,6 +159,7 @@
 				gui.add(button,'GeneratePerlin2').name("My Perlin");
 				gui.add(button,'GenerateDiamondSquare').name("Diamond Square");
 				gui.add(button,'GenerateParticleDeposition').name("Particle Deposition");
+				gui.add(button,'GenerateFaultAlgorithm').name("Fault Algorithm");
 				gui.close();
 
 				window.addEventListener( 'resize', onWindowResize, false );
@@ -195,6 +199,11 @@
 				{
 					heightMultiplier = 128 * roughness;
 					data = generateHeightFromParticleDeposition( worldSize );
+				}
+				else if (fault)
+				{
+					heightMultiplier = 128 * roughness;
+					data = generateHeigthFromFaultAlgorithm( worldSize );
 				}
 
 				// Smooth the height map, smoothness flipped so 1 = no smooth, 0 = smooth
@@ -280,6 +289,12 @@
 			function generateHeightFromParticleDeposition( worldSize ) {
 				var particleDeposition = new ParticleDeposition();
 				return particleDeposition.GetHeightMap(worldSize, false, 1000000, 1, 5);
+			}
+
+			function generateHeigthFromFaultAlgorithm( worldSize ) {
+				var faultAlgorithm = new FaultAlgorithm();
+				//return faultAlgorithm.GetHeightMap(worldSize, 600);
+				return faultAlgorithm.GetHeightMap(worldSize, 600, true);
 			}
 
 			function smooth( data, size, smoothConstant, numberOfIterations) {
